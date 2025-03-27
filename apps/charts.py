@@ -62,6 +62,7 @@ def _(mo):
     # Parameters
     pmi_rate = 0.0055
     property_tax_rate = 0.0202
+    utilities = 465
 
     # Group housing settings
     housing_settings = mo.vstack(
@@ -113,6 +114,13 @@ def _(mo):
                     The median Dane County effective property tax rate is {property_tax_rate:.2%}.
                     """
                 ),
+                "Utilities": (
+                    f"""
+                    I'm making some assumptions based on 2025 data and estimating ${utilities} monthly.
+                
+                    - [Madison Gas & Electric Estimates by Address](https://www.mge.com/my-account/energy-service/estimate-energy-costs)
+                    """
+                ),
             })
         ],
         gap=1
@@ -134,6 +142,7 @@ def _(mo):
         property_tax_rate,
         property_taxes_input,
         student_loans_input,
+        utilities,
     )
 
 
@@ -163,6 +172,23 @@ def _(
             monthly_payment = loan_amount / total_payments
 
         return monthly_payment
+
+
+    def calculate_monthly_housing_cost(loan_amount, annual_interest_rate, loan_term_years, property_tax_rate, pmi_rate):
+        monthly_mortgage = calculate_mortgage_payment(
+            loan_amount,
+            loan_term_years,
+            annual_interest_rate
+        )
+    
+        pmi_monthly = pmi_rate * loan_amount / 12
+
+        # Should be home price instead of loan amount, but this is easier.
+        property_tax_monthly = loan_amount * property_tax_rate / 12
+
+        monthly_housing_cost = monthly_mortgage + property_tax_monthly + pmi_monthly
+        return monthly_housing_cost
+    
 
     loan_amount = house_price_input.value - down_payment_input.value
 
@@ -195,6 +221,7 @@ def _(
     percent_income_non_housing = (non_housing_cost_annual / income_input.value) * 100
     percent_income_total = percent_income_housing + percent_income_non_housing
     return (
+        calculate_monthly_housing_cost,
         calculate_mortgage_payment,
         housing_cost_annual,
         housing_cost_monthly,
@@ -215,6 +242,7 @@ def _(
 
 @app.cell(hide_code=True)
 def _(
+    generate_amortization_schedule,
     housing_cost_monthly,
     loan_amount,
     mo,
@@ -307,19 +335,25 @@ def _(
                 mo.md("Closing costs:"),
                 mo.md(f"**${loan_amount * 0.02:,.0f} - ${loan_amount * 0.05:,.0f}**")
             ], gap=1, justify='space-between', widths='equal'),
+            mo.md("<br>")
         ]), 
-        mo.md(
-            f"""
-            Monthly housing costs {text_28} than 28% of gross monthly income.
-        
-            Total monthly expenses are {text_36} than 36% of gross monthly income.
-            """
-        ).callout(callout),
+
+        mo.vstack([
+            mo.md(
+                f"""
+                Monthly housing costs {text_28} than 28% of gross monthly income.
+            
+                Total monthly expenses are {text_36} than 36% of gross monthly income.
+                """
+            ).callout(callout),
+            mo.md("### Amortization Schedule"),
+            generate_amortization_schedule()])
+    
     ], widths='equal')
     return callout, text_28, text_36
 
 
-@app.cell(hide_code=True)
+@app.cell
 def _(
     alt,
     interest_rate_input,
@@ -329,58 +363,47 @@ def _(
     monthly_mortgage,
     pd,
 ):
-    # Generate amortization schedule
-    amortization_schedule = []
-    remaining_balance = loan_amount
-    monthly_interest_rate = interest_rate_input.value / 100 / 12
-
-    for month in range(1, loan_term.value * 12 + 1):
-        interest_payment = remaining_balance * monthly_interest_rate
-        principal_payment = monthly_mortgage - interest_payment
-        remaining_balance -= principal_payment
-        amortization_schedule.append({
-            'Month': month,
-            'Principal': principal_payment,
-            'Interest': interest_payment,
-            'Remaining Balance': max(remaining_balance, 0)
-        })
-
-    schedule_df = pd.DataFrame(amortization_schedule)
-
-    # Plotting principal vs. interest over time
-    chart_data = schedule_df.melt('Month', ['Principal', 'Interest'], var_name='Payment Type', value_name='Amount')
-    chart_data['Amount'] = chart_data['Amount'].round(2)
-
-    lifetime_mortgage_chart = (
-        mo.ui.altair_chart(
-            alt.Chart(chart_data).mark_line(strokeWidth=12).encode(
-                x='Month',
-                y='Amount',
-                color='Payment Type'
-            ).properties(
-                title='Principal vs. Interest Payments Over Time',
-                width=600,
-                height=300,
-            ).configure_legend(
-                titleFontSize=16,  # Legend title font size
-                labelFontSize=14,  # Legend label font size
-                symbolSize=2000    # Legend symbol size
+    def generate_amortization_schedule():
+        # Generate amortization schedule
+        amortization_schedule = []
+        remaining_balance = loan_amount
+        monthly_interest_rate = interest_rate_input.value / 100 / 12
+    
+        for month in range(1, loan_term.value * 12 + 1):
+            interest_payment = remaining_balance * monthly_interest_rate
+            principal_payment = monthly_mortgage - interest_payment
+            remaining_balance -= principal_payment
+            amortization_schedule.append({
+                'Month': month,
+                'Principal': principal_payment,
+                'Interest': interest_payment,
+                'Remaining Balance': max(remaining_balance, 0)
+            })
+    
+        schedule_df = pd.DataFrame(amortization_schedule)
+    
+        # Plotting principal vs. interest over time
+        chart_data = schedule_df.melt('Month', ['Principal', 'Interest'], var_name='Payment Type', value_name='Amount')
+        chart_data['Amount'] = chart_data['Amount'].round(2)
+    
+        lifetime_mortgage_chart = (
+            mo.ui.altair_chart(
+                alt.Chart(chart_data).mark_line(strokeWidth=10).encode(
+                    x='Month',
+                    y='Amount',
+                    color='Payment Type'
+                ).properties(
+                    width=300,
+                    height=200,
+                ).configure_legend(
+                    titleFontSize=14,  # Legend title font size
+                    labelFontSize=12,  # Legend label font size
+                    symbolSize=1000    # Legend symbol size
+                )
             )
         )
-    )
-
-    lifetime_mortgage_chart
-    return (
-        amortization_schedule,
-        chart_data,
-        interest_payment,
-        lifetime_mortgage_chart,
-        month,
-        monthly_interest_rate,
-        principal_payment,
-        remaining_balance,
-        schedule_df,
-    )
+        return lifetime_mortgage_chart
+    return (generate_amortization_schedule,)
 
 
 @app.cell
@@ -389,111 +412,195 @@ def _():
     return
 
 
-@app.cell
-def _(
-    alt,
-    calculate_monthly_housing_cost,
-    interest_rate_input,
-    loan_amount,
-    loan_term,
-    mo,
-    pd,
-    pmi_monthly,
-    property_tax_monthly,
-):
-    def plot_interest_rate_vs_payment(
-        loan_amount: float,
-        loan_term_years: int,
-        base_interest_rate: float,
-        property_tax_monthly: float,
-        pmi_monthly: float,
-        delta_interest_rate: float
-    ):
-        """
-        Generates an Altair scatterplot showing how adjustments in interest rates 
-        affect the monthly payment, over a range of (base_interest_rate ± delta_interest_rate) 
-        in 0.1% increments. The resulting chart is wrapped in a mo.ui.altair_chart.
+@app.cell(hide_code=True)
+def _():
+    # def plot_interest_rate_vs_payment(
+    #     loan_amount: float,
+    #     loan_term_years: int,
+    #     base_interest_rate: float,
+    #     property_tax_monthly: float,
+    #     pmi_monthly: float,
+    #     delta_interest_rate: float
+    # ):
+    #     """
+    #     Generates an Altair scatterplot showing how adjustments in interest rates 
+    #     affect the monthly payment, over a range of (base_interest_rate ± delta_interest_rate) 
+    #     in 0.1% increments. The resulting chart is wrapped in a mo.ui.altair_chart.
 
-        Parameters:
-          - loan_amount: The total loan amount.
-          - loan_term_years: The term of the loan in years.
-          - base_interest_rate: The base annual interest rate (in percentage).
-          - property_tax_monthly: The monthly property tax.
-          - pmi_monthly: The monthly PMI.
-          - delta_interest_rate: The deviation (in percentage points) from the base rate.
+    #     Parameters:
+    #       - loan_amount: The total loan amount.
+    #       - loan_term_years: The term of the loan in years.
+    #       - base_interest_rate: The base annual interest rate (in percentage).
+    #       - property_tax_monthly: The monthly property tax.
+    #       - pmi_monthly: The monthly PMI.
+    #       - delta_interest_rate: The deviation (in percentage points) from the base rate.
       
-        Returns:
-          A mo.ui.altair_chart object representing the scatterplot.
-        """
-        lower_rate = base_interest_rate - delta_interest_rate
-        higher_rate = base_interest_rate + delta_interest_rate
+    #     Returns:
+    #       A mo.ui.altair_chart object representing the scatterplot.
+    #     """
+    #     lower_rate = base_interest_rate - delta_interest_rate
+    #     higher_rate = base_interest_rate + delta_interest_rate
 
-        data = []
-        current_rate = lower_rate
-        # Loop in increments of 0.1% until we surpass the higher_rate
-        while current_rate <= higher_rate + 1e-8:  # epsilon to ensure inclusion
-            payment = calculate_monthly_housing_cost(
-                loan_amount,
-                current_rate,
-                loan_term_years,
-                property_tax_monthly,
-                pmi_monthly
-            )
-            data.append({
-                'Interest Rate (%)': current_rate,
-                'Monthly Payment': payment
-            })
-            # Increment by 0.1% and round to avoid floating point issues
-            current_rate = round(current_rate + 0.1, 10)
+    #     data = []
+    #     current_rate = lower_rate
+    #     # Loop in increments of 0.1% until we surpass the higher_rate
+    #     while current_rate <= higher_rate + 1e-8:  # epsilon to ensure inclusion
+    #         payment = calculate_monthly_housing_cost(
+    #             loan_amount,
+    #             current_rate,
+    #             loan_term_years,
+    #             property_tax_monthly,
+    #             pmi_monthly
+    #         )
+    #         data.append({
+    #             'Interest Rate (%)': current_rate,
+    #             'Monthly Payment': payment
+    #         })
+    #         # Increment by 0.1% and round to avoid floating point issues
+    #         current_rate = round(current_rate + 0.1, 10)
 
-        df = pd.DataFrame(data)
-        df['Monthly Payment'] = df['Monthly Payment'].round(0)
-        min_payment = df['Monthly Payment'].min()
-        max_payment = df['Monthly Payment'].max()
+    #     df = pd.DataFrame(data)
+    #     df['Monthly Payment'] = df['Monthly Payment'].round(0)
+    #     min_payment = df['Monthly Payment'].min()
+    #     max_payment = df['Monthly Payment'].max()
 
-        chart = alt.Chart(df).mark_circle(size=150).encode(
-            x=alt.X('Interest Rate (%)', 
-                    title='Interest Rate (%)',
-                    scale=alt.Scale(domain=[lower_rate - 0.1, higher_rate + 0.1]),
-                    axis=alt.Axis(labelExpr="datum.value + '%'")),
-            y=alt.Y('Monthly Payment', 
-                    title='Monthly Payment ($)',
-                    scale=alt.Scale(domain=[min_payment - 100, max_payment + 100]),
-                    axis=alt.Axis(format="$,d")),
-           color=alt.condition(
-                alt.datum["Interest Rate (%)"] == base_interest_rate,
-                alt.value("orange"),    # Center point is colored orange.
-                alt.value("steelblue")  # Other points are colored steelblue.
-            )
-        ).properties(
-            title='Impact of Interest Rate on Monthly Payment',
-            width=600,
-            height=400
-        ).configure_title(
-            fontSize=20,
-        ).configure_axis(
-            labelFontSize=14,
-            titleFontSize=16
-        )
+    #     chart = alt.Chart(df).mark_circle(size=150).encode(
+    #         x=alt.X('Interest Rate (%)', 
+    #                 title='Interest Rate (%)',
+    #                 scale=alt.Scale(domain=[lower_rate - 0.1, higher_rate + 0.1]),
+    #                 axis=alt.Axis(labelExpr="datum.value + '%'")),
+    #         y=alt.Y('Monthly Payment', 
+    #                 title='Monthly Payment ($)',
+    #                 scale=alt.Scale(domain=[min_payment - 100, max_payment + 100]),
+    #                 axis=alt.Axis(format="$,d")),
+    #        color=alt.condition(
+    #             alt.datum["Interest Rate (%)"] == base_interest_rate,
+    #             alt.value("orange"),    # Center point is colored orange.
+    #             alt.value("steelblue")  # Other points are colored steelblue.
+    #         )
+    #     ).properties(
+    #         width=300,
+    #         height=200
+    #     ).configure_title(
+    #         fontSize=20,
+    #     ).configure_axis(
+    #         labelFontSize=12,
+    #         titleFontSize=14
+    #     )
 
-        return mo.ui.altair_chart(
-            chart,
-            chart_selection="point",
-            legend_selection=True,
-            label="Interest Rate vs. Monthly Payment"
-        )
+    #     return mo.ui.altair_chart(
+    #         chart,
+    #         chart_selection="point",
+    #         legend_selection=True,
+    #         # label="Interest Rate vs. Monthly Payment"
+    #     )
 
-    interest_rate_chart = plot_interest_rate_vs_payment(
-        loan_amount, 
-        loan_term.value, 
-        interest_rate_input.value, 
-        property_tax_monthly, 
-        pmi_monthly, 
-        delta_interest_rate=1.0
-    )
+    # interest_rate_chart = plot_interest_rate_vs_payment(
+    #     loan_amount, 
+    #     loan_term.value, 
+    #     interest_rate_input.value, 
+    #     property_tax_monthly, 
+    #     pmi_monthly, 
+    #     delta_interest_rate=1.0
+    # )
 
-    interest_rate_chart
-    return interest_rate_chart, plot_interest_rate_vs_payment
+    # interest_rate_chart
+    return
+
+
+@app.cell(hide_code=True)
+def _():
+    # def plot_house_price_vs_payment(
+    #     house_price_input: float,
+    #     loan_term_years: int,
+    #     interest_rate: float,
+    #     property_tax_monthly: float,
+    #     pmi_monthly: float,
+    #     num_increments: int = 10,
+    #     delta_house_price: int = 10000
+
+    # ):
+    #     """
+    #     Generates an Altair scatterplot showing how increments in house price
+    #     affect the monthly payment. It uses house_price_input as the base and 
+    #     increases the house price in $10,000 increments.
+
+    #     # Parameters:
+    #       - house_price_input: The base starting house price.
+    #       - loan_term_years: The term of the loan in years.
+    #       - interest_rate: The annual interest rate (in percentage).
+    #       - property_tax_monthly: The monthly property tax.
+    #       - pmi_monthly: The monthly PMI.
+    #       - num_increments: The number of $10k increments to generate data for.
+      
+    #     Returns:
+    #       A mo.ui.altair_chart object representing the scatterplot.
+    #     """
+    #     price_diff = num_increments * delta_house_price / 2
+    #     current_house_price = house_price_input - price_diff
+    #     data = []
+    #     for i in range(num_increments + 1):
+    #         payment = calculate_monthly_housing_cost(
+    #             current_house_price,
+    #             interest_rate,
+    #             loan_term_years,
+    #             property_tax_monthly,
+    #             pmi_monthly
+    #         )
+    #         data.append({
+    #             'House Price ($)': current_house_price,
+    #             'Monthly Payment': payment
+    #         })
+    #         current_house_price += delta_house_price
+    
+    #     df = pd.DataFrame(data)
+    #     df['Monthly Payment'] = df['Monthly Payment'].round(0)
+    #     min_payment = df['Monthly Payment'].min()
+    #     max_payment = df['Monthly Payment'].max()
+
+    #     chart = alt.Chart(df).mark_circle(size=150).encode(
+    #         x=alt.X('House Price ($)',
+    #                 title='House Price ($)',
+    #                 scale=alt.Scale(domain=[house_price_input - 1.2*price_diff, house_price_input + 1.2*price_diff]),
+    #                 axis=alt.Axis(format="$,d")),
+    #         y=alt.Y('Monthly Payment',
+    #                 title='Monthly Payment ($)',
+    #                 scale=alt.Scale(domain=[min_payment - 100, max_payment + 100]),
+    #                 axis=alt.Axis(format="$,d")),
+    #         color=alt.condition(
+    #             alt.datum["House Price ($)"] == house_price_input,
+    #             alt.value("orange"),    # Base house price is highlighted in orange.
+    #             alt.value("steelblue")  # Other points are colored steelblue.
+    #         )
+    #     ).properties(
+    #         title='Impact of House Price on Monthly Payment',
+    #         width=600,
+    #         height=400
+    #     ).configure_title(
+    #         fontSize=20,
+    #     ).configure_axis(
+    #         labelFontSize=14,
+    #         titleFontSize=16
+    #     )
+
+    #     return mo.ui.altair_chart(
+    #         chart,
+    #         chart_selection="point",
+    #         legend_selection=True,
+    #         label="House Price vs. Monthly Payment"
+    #     )
+
+    # house_price_chart = plot_house_price_vs_payment(
+    #     house_price_input.value, 
+    #     loan_term.value, 
+    #     interest_rate_input.value, 
+    #     property_tax_monthly, 
+    #     pmi_monthly, 
+    #     num_increments=20
+    # )
+
+    # house_price_chart
+    return
 
 
 @app.cell
@@ -505,193 +612,147 @@ def _(
     loan_term,
     mo,
     pd,
-    pmi_monthly,
-    property_tax_monthly,
+    pmi_rate,
+    property_tax_rate,
 ):
-    def plot_house_price_vs_payment(
-        house_price_input: float,
-        loan_term_years: int,
-        interest_rate: float,
-        property_tax_monthly: float,
-        pmi_monthly: float,
-        num_increments: int = 10,
-        delta_house_price: int = 10000
-
+    def plot_interest_rate_and_house_price_vs_payment(
+        base_loan_term_years: int,
+        base_interest_rate: float,
+        delta_interest_rate: float,
+        base_house_price: float,
+        delta_house_price: int,
+        num_price_increments: int,
+        property_tax_rate: float,
+        pmi_rate: float
     ):
         """
-        Generates an Altair scatterplot showing how increments in house price
-        affect the monthly payment. It uses house_price_input as the base and 
-        increases the house price in $10,000 increments.
+        Plots a single heatmap combining variations in interest rate and house price 
+        to illustrate their combined impact on monthly mortgage payment.
 
         Parameters:
-          - house_price_input: The base starting house price.
-          - loan_term_years: The term of the loan in years.
-          - interest_rate: The annual interest rate (in percentage).
-          - property_tax_monthly: The monthly property tax.
-          - pmi_monthly: The monthly PMI.
-          - num_increments: The number of $10k increments to generate data for.
-      
+        -----------
+          - base_loan_term_years : int
+              The term of the loan in years.
+          - base_interest_rate : float
+              The base annual interest rate (e.g., 6.0 for 6.0%).
+          - delta_interest_rate : float
+              The plus/minus deviation for interest rate. 
+              E.g., if base_interest_rate=6.0 and delta_interest_rate=1.0, we range from 5.0% to 7.0%.
+          - base_house_price : float
+              The starting (base) house price, typically the user input.
+          - delta_house_price : int
+              The increment step in house price (e.g., 10,000).
+          - num_price_increments : int
+              Number of increments above and below the base_house_price. 
+              Total points will be (2 * num_price_increments) + 1.
+          - property_tax_rate : float
+              The property tax rate.
+          - pmi_monthly : float
+              The PMI rate.
+
         Returns:
-          A mo.ui.altair_chart object representing the scatterplot.
+        --------
+          An Altair chart (heatmap) showing monthly payment (color) 
+          for combinations of interest rates and house prices.
         """
-        price_diff = num_increments * delta_house_price / 2
-        current_house_price = house_price_input - price_diff
-        data = []
-        for i in range(num_increments + 1):
-            payment = calculate_monthly_housing_cost(
-                current_house_price,
-                interest_rate,
-                loan_term_years,
-                property_tax_monthly,
-                pmi_monthly
-            )
-            data.append({
-                'House Price ($)': current_house_price,
-                'Monthly Payment': payment
-            })
-            current_house_price += delta_house_price
     
-        df = pd.DataFrame(data)
-        df['Monthly Payment'] = df['Monthly Payment'].round(0)
-        min_payment = df['Monthly Payment'].min()
-        max_payment = df['Monthly Payment'].max()
+        # Range of interest rates in steps of 0.1
+        lower_rate = base_interest_rate - delta_interest_rate
+        higher_rate = base_interest_rate + delta_interest_rate
+    
+        # Generate the list of interest rates
+        rates = []
+        current_rate = lower_rate
+        while current_rate <= higher_rate + 1e-8:
+            # Round to avoid floating point drift
+            rates.append(round(current_rate, 3))
+            current_rate = round(current_rate + 0.1, 3)
+    
+        # Range of house prices in steps of delta_house_price
+        # We'll go 'num_price_increments' steps below and above the base.
+        # E.g. if base=300k, delta=10k, increments=5 => from 250k to 350k
+        price_start = base_house_price - num_price_increments * delta_house_price
+        price_end   = base_house_price + num_price_increments * delta_house_price
+        prices = list(range(int(price_start), int(price_end + 1), delta_house_price))
+    
+        # Collect data
+        records = []
+        for r in rates:
+            for p in prices:
+                payment = calculate_monthly_housing_cost(
+                    loan_amount = p,
+                    annual_interest_rate = r,
+                    loan_term_years = base_loan_term_years,
+                    property_tax_rate = property_tax_rate,
+                    pmi_rate = pmi_rate
+                )
+                records.append({
+                    'Interest Rate (%)': r,
+                    'House Price ($)': p,
+                    'Monthly Payment': round(payment, 0)
+                })
+    
+        df = pd.DataFrame(records)
 
-        chart = alt.Chart(df).mark_circle(size=150).encode(
-            x=alt.X('House Price ($)',
+        # Build an Altair heatmap
+        chart = (
+            alt.Chart(df)
+            .mark_rect()
+            .encode(
+                x=alt.X(
+                    'Interest Rate (%):O',  # treat them as discrete steps
+                    title='Interest Rate (%)',
+                    sort=rates  # ensure ascending sorting
+                ),
+                y=alt.Y(
+                    'House Price ($):O',
                     title='House Price ($)',
-                    scale=alt.Scale(domain=[house_price_input - 1.2*price_diff, house_price_input + 1.2*price_diff]),
-                    axis=alt.Axis(format="$,d")),
-            y=alt.Y('Monthly Payment',
+                    sort="descending"
+                ),
+                color=alt.Color(
+                    'Monthly Payment:Q',
                     title='Monthly Payment ($)',
-                    scale=alt.Scale(domain=[min_payment - 100, max_payment + 100]),
-                    axis=alt.Axis(format="$,d")),
-            color=alt.condition(
-                alt.datum["House Price ($)"] == house_price_input,
-                alt.value("orange"),    # Base house price is highlighted in orange.
-                alt.value("steelblue")  # Other points are colored steelblue.
+                    scale=alt.Scale(scheme='blues')  # or 'reds', 'greens', etc.
+                ),
+                tooltip=[
+                    alt.Tooltip('Interest Rate (%)', title='Interest Rate (%)'),
+                    alt.Tooltip('House Price ($)',   title='House Price ($)', format='$,'),
+                    alt.Tooltip('Monthly Payment',   title='Monthly Payment', format='$,')
+                ]
             )
-        ).properties(
-            title='Impact of House Price on Monthly Payment',
-            width=600,
-            height=400
-        ).configure_title(
-            fontSize=20,
-        ).configure_axis(
-            labelFontSize=14,
-            titleFontSize=16
+            .properties(
+                width=800,
+                height=500,
+                # title='Combined Impact of Interest Rate and House Price on Monthly Payment'
+            )
+            .configure_title(fontSize=20)
+            .configure_axis(labelFontSize=14, titleFontSize=16)
         )
-
+    
         return mo.ui.altair_chart(
             chart,
             chart_selection="point",
             legend_selection=True,
-            label="House Price vs. Monthly Payment"
         )
 
-    house_price_chart = plot_house_price_vs_payment(
-        house_price_input.value, 
-        loan_term.value, 
-        interest_rate_input.value, 
-        property_tax_monthly, 
-        pmi_monthly, 
-        num_increments=20
+    combined_chart = plot_interest_rate_and_house_price_vs_payment(
+        base_loan_term_years = loan_term.value,
+        base_interest_rate = interest_rate_input.value,
+        delta_interest_rate = 1.0,
+        base_house_price = house_price_input.value,
+        delta_house_price = 10000,
+        num_price_increments = 5,
+        property_tax_rate = property_tax_rate,
+        pmi_rate = pmi_rate
     )
 
-    house_price_chart
-    return house_price_chart, plot_house_price_vs_payment
+    combined_chart
+    return combined_chart, plot_interest_rate_and_house_price_vs_payment
 
 
-@app.cell(hide_code=True)
-def _(
-    calculate_mortgage_payment,
-    interest_rate_input,
-    loan_amount,
-    loan_term,
-    pmi_monthly,
-    property_tax_monthly,
-):
-    def calculate_monthly_housing_cost(
-        loan_amount: float,
-        annual_interest_rate: float,
-        loan_term_years: int,
-        property_tax_monthly: float,
-        pmi_monthly: float
-    ) -> float:
-        """
-        Calculates the total monthly housing cost (mortgage + property taxes + PMI) 
-        given the loan parameters and interest rate.
-        """
-        monthly_mortgage = calculate_mortgage_payment(
-            loan_amount,
-            loan_term_years,
-            annual_interest_rate
-        )
-        monthly_housing_cost = monthly_mortgage + property_tax_monthly + pmi_monthly
-        return monthly_housing_cost
-
-
-    def what_if_interest_rate_scenarios(
-        loan_amount: float,
-        loan_term_years: int,
-        base_interest_rate: float,
-        property_tax_monthly: float,
-        pmi_monthly: float,
-        delta_interest_rate: float
-    ) -> dict:
-        """
-        Given a base interest rate and a delta, computes the monthly housing cost 
-        if rates were to increase or decrease by that delta.
-
-        Returns a dictionary with:
-          - 'lower_rate_cost' for (base_interest_rate - delta)
-          - 'base_rate_cost' for (base_interest_rate)
-          - 'higher_rate_cost' for (base_interest_rate + delta)
-        """
-        lower_rate = base_interest_rate - delta_interest_rate
-        higher_rate = base_interest_rate + delta_interest_rate
-    
-        lower_rate_cost = calculate_monthly_housing_cost(
-            loan_amount,
-            lower_rate,
-            loan_term_years,
-            property_tax_monthly,
-            pmi_monthly
-        )
-    
-        base_rate_cost = calculate_monthly_housing_cost(
-            loan_amount,
-            base_interest_rate,
-            loan_term_years,
-            property_tax_monthly,
-            pmi_monthly
-        )
-    
-        higher_rate_cost = calculate_monthly_housing_cost(
-            loan_amount,
-            higher_rate,
-            loan_term_years,
-            property_tax_monthly,
-            pmi_monthly
-        )
-    
-        return {
-            'lower_rate': lower_rate,
-            'lower_rate_cost': lower_rate_cost,
-            'base_rate': base_interest_rate,
-            'base_rate_cost': base_rate_cost,
-            'higher_rate': higher_rate,
-            'higher_rate_cost': higher_rate_cost
-        }
-
-    what_if_interest_rate_scenarios(
-        loan_amount,
-        loan_term.value,
-        interest_rate_input.value,
-        property_tax_monthly,
-        pmi_monthly,
-        delta_interest_rate=1.0  # For example, 1% up or down
-    )
-    return calculate_monthly_housing_cost, what_if_interest_rate_scenarios
+@app.cell
+def _():
+    return
 
 
 @app.cell
@@ -701,21 +762,26 @@ def _(mo):
 
 
 @app.cell
-def _(alt, mo, np, pd):
-    # Create sample data
-    data = pd.DataFrame({"x": np.arange(100), "y": np.random.normal(0, 1, 100)})
+def _():
+    # # Create sample data
+    # data = pd.DataFrame({"x": np.arange(100), "y": np.random.normal(0, 1, 100)})
 
-    # Create interactive chart
-    chart = mo.ui.altair_chart(
-        (
-            alt.Chart(data)
-            .mark_circle()
-            .encode(x="x", y="y", size=alt.value(100), color=alt.value("steelblue"))
-            .properties(height=400, title="Interactive Scatter Plot")
-        )
-    )
-    chart
-    return chart, data
+    # # Create interactive chart
+    # chart = mo.ui.altair_chart(
+    #     (
+    #         alt.Chart(data)
+    #         .mark_circle()
+    #         .encode(x="x", y="y", size=alt.value(100), color=alt.value("steelblue"))
+    #         .properties(height=400, title="Interactive Scatter Plot")
+    #     )
+    # )
+    # chart
+    return
+
+
+@app.cell
+def _():
+    return
 
 
 if __name__ == "__main__":
