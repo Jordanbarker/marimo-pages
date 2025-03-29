@@ -111,7 +111,7 @@ def _():
                 "Utilities": (
                     f"""
                     I'm making some assumptions based on 2025 data and estimating ${utilities} monthly.
-                
+
                     - [Madison Gas & Electric Estimates by Address](https://www.mge.com/my-account/energy-service/estimate-energy-costs)
                     """
                 ),
@@ -176,7 +176,7 @@ def _(
             loan_term_years,
             annual_interest_rate
         )
-    
+
         pmi_monthly = pmi_rate * loan_amount / 12
 
         # Should be home price instead of loan amount, but this is easier.
@@ -184,7 +184,7 @@ def _(
 
         monthly_housing_cost = monthly_mortgage + property_tax_monthly + pmi_monthly
         return monthly_housing_cost
-    
+
 
     loan_amount = house_price_input.value - down_payment_input.value
 
@@ -265,25 +265,25 @@ def _(
             mo.md(
                 """
                 ## Results
-            
+
                 ### 28/36 Rule
                 """
             ),
-    
+
             mo.hstack([
                 mo.md("Housing as % of income:"),
                 mo.md(f"**{percent_income_housing:.2f}%**")
             ], gap=1, justify='space-between', widths='equal'),
-        
+
             mo.hstack([
                 mo.md("Other expenses as % of income:"),
                 mo.md(f"**{percent_income_non_housing:.2f}%**")
             ], gap=1, justify='space-between', widths='equal'),
-        
+
             mo.md(""),
             mo.md("---"),
             mo.md(""),
-    
+
             mo.hstack([
                 mo.md("Total costs as % of income:"),
                 mo.md(f"**{percent_income_total:.2f}%**")
@@ -299,39 +299,39 @@ def _(
                 mo.md("Mortgage:"),
                 mo.md(f"**${monthly_mortgage:,.0f}**")
             ], gap=1, justify='space-between', widths='equal'),
-    
+
             mo.hstack([
                 mo.md("Property Taxes:"),
                 mo.md(f"**${property_tax_monthly:,.0f}**")
             ], gap=1, justify='space-between', widths='equal'),
-    
+
             mo.hstack([
                 mo.md("PMI:"),
                 mo.md(f"**${pmi_monthly:,.0f}**")
             ], gap=1, justify='space-between', widths='equal'),
-    
+
             mo.md(""),
             mo.md("---"),
             mo.md(""),
-    
+
             mo.hstack([
                 mo.md("Total:"),
                 mo.md(f"**${housing_cost_monthly:,.0f}**")
             ], gap=1, justify='space-between', widths='equal'),
-    
-        
+
+
             mo.md(
                 """
                 <br>
                 ### Other Considerations
                 """
             ),
-        
+
             mo.hstack([
                 mo.md("Emergency Fund (6 months of expenses):"),
                 mo.md(f"**${monthly_expenses*6:,.0f}**")
             ], gap=1, justify='space-between', widths='equal'),
-        
+
             mo.hstack([
                 mo.md("Closing costs:"),
                 mo.md(f"**${loan_amount * 0.02:,.0f} - ${loan_amount * 0.05:,.0f}**")
@@ -343,11 +343,11 @@ def _(
             mo.md(
                 f"""
                 Monthly housing costs {text_28} than 28% of gross monthly income.
-            
+
                 Total monthly expenses are {text_36} than 36% of gross monthly income.
                 """
             ).callout(callout),
-            mo.md("### Amortization Schedule"),
+            # mo.md("### Amortization Schedule"),
             mo.md("#### Monthly Principal and Interest Payments"),
             amortization_monthly_chart(schedule_df),
             mo.md("#### Cumulative Principal and Interest Payments"),
@@ -370,10 +370,10 @@ def _(alt, mo, monthly_mortgage, pd):
             interest_payment = remaining_balance * monthly_interest_rate
             principal_payment = monthly_mortgage - interest_payment
             remaining_balance -= principal_payment
-        
+
             # The date for this row is the start_date plus (month - 1) months
             current_date = start_date + pd.DateOffset(months=month - 1)
-        
+
             amortization_schedule.append({
                 'Month': month,
                 'Date': current_date,
@@ -381,13 +381,13 @@ def _(alt, mo, monthly_mortgage, pd):
                 'Interest': interest_payment,
                 'Remaining Balance': max(remaining_balance, 0)
             })
-    
+
         schedule_df = pd.DataFrame(amortization_schedule)
-    
+
         return schedule_df
 
     def amortization_monthly_chart(schedule_df):
-    
+
         # Plotting principal vs. interest over time
         chart_data = schedule_df.melt(
             'Date', 
@@ -452,7 +452,7 @@ def _(alt, mo, monthly_mortgage, pd):
 
         return mo.ui.altair_chart(monthly_chart)
 
-    
+
     def amortization_cumulative_chart(schedule_df):
         schedule_df['Cumulative Principal'] = schedule_df['Principal'].cumsum()
         schedule_df['Cumulative Interest'] = schedule_df['Interest'].cumsum()
@@ -464,7 +464,7 @@ def _(alt, mo, monthly_mortgage, pd):
             var_name='Payment Type',
             value_name='Amount'
         )
-    
+
         chart_data['Amount'] = chart_data['Amount'].round(2)
 
         nearest = alt.selection_point(
@@ -574,11 +574,11 @@ def _(
           An Altair chart (heatmap) showing monthly payment (color) 
           for combinations of interest rates and house prices.
         """
-    
+
         # Range of interest rates in steps of 0.1
         lower_rate = base_interest_rate - delta_interest_rate
         higher_rate = base_interest_rate + delta_interest_rate
-    
+
         # Generate the list of interest rates
         rates = []
         current_rate = lower_rate
@@ -586,14 +586,14 @@ def _(
             # Round to avoid floating point drift
             rates.append(round(current_rate, 3))
             current_rate = round(current_rate + 0.1, 3)
-    
+
         # Range of house prices in steps of delta_house_price
         # We'll go 'num_price_increments' steps below and above the base.
         # E.g. if base=300k, delta=10k, increments=5 => from 250k to 350k
         price_start = base_house_price - num_price_increments * delta_house_price
         price_end   = base_house_price + num_price_increments * delta_house_price
         prices = list(range(int(price_start), int(price_end + 1), delta_house_price))
-    
+
         # Collect data
         records = []
         for r in rates:
@@ -610,7 +610,7 @@ def _(
                     'House Price ($)': p,
                     'Monthly Payment': round(payment, 0)
                 })
-    
+
         df = pd.DataFrame(records)
 
         # Build an Altair heatmap
@@ -646,7 +646,7 @@ def _(
             .configure_title(fontSize=20)
             .configure_axis(labelFontSize=14, titleFontSize=16)
         )
-    
+
         return mo.ui.altair_chart(
             chart,
             chart_selection="point",
@@ -671,29 +671,6 @@ def _(
 @app.cell
 def _(mo):
     mo.md("""<!-- <img src="public/logo.png" width="200" /> -->""")
-    return
-
-
-@app.cell
-def _():
-    # # Create sample data
-    # data = pd.DataFrame({"x": np.arange(100), "y": np.random.normal(0, 1, 100)})
-
-    # # Create interactive chart
-    # chart = mo.ui.altair_chart(
-    #     (
-    #         alt.Chart(data)
-    #         .mark_circle()
-    #         .encode(x="x", y="y", size=alt.value(100), color=alt.value("steelblue"))
-    #         .properties(height=400, title="Interactive Scatter Plot")
-    #     )
-    # )
-    # chart
-    return
-
-
-@app.cell
-def _():
     return
 
 
