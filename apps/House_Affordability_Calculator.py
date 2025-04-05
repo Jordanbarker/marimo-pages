@@ -11,7 +11,7 @@ def _(mo):
         # House Affordability Calculator
 
         ## 28/36 Rule
-        No more than **28%** of the borrower’s gross monthly income should be spent on housing costs. Housing costs typically includes:
+        No more than **28%** of the borrower's gross monthly income should be spent on housing costs. Housing costs typically includes:
 
         - Mortgage principal and interest
 
