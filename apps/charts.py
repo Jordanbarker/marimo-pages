@@ -157,7 +157,20 @@ def _(
     property_taxes_input,
     student_loans_input,
 ):
-    def calculate_mortgage_payment(loan_amount, loan_term_years, annual_interest_rate):
+    def calculate_mortgage_payment(loan_amount: float, 
+                                   loan_term_years: int, 
+                                   annual_interest_rate: float) -> float:
+        """
+        Calculates the monthly mortgage payment for a given loan amount, term, and annual interest rate.
+
+        Args:
+            loan_amount: The total principal of the loan.
+            loan_term_years: The loan term in years.
+            annual_interest_rate: The annual interest rate (percentage).
+
+        Returns:
+            The required monthly mortgage payment.
+        """    
         monthly_interest_rate = annual_interest_rate / 100 / 12
         total_payments = loan_term_years * 12
 
@@ -170,15 +183,28 @@ def _(
         return monthly_payment
 
 
-    def calculate_monthly_housing_cost(loan_amount, annual_interest_rate, loan_term_years, property_tax_rate, pmi_rate):
-        monthly_mortgage = calculate_mortgage_payment(
-            loan_amount,
-            loan_term_years,
-            annual_interest_rate
-        )
+    def calculate_monthly_housing_cost(
+        loan_amount: float,
+        annual_interest_rate: float,
+        loan_term_years: int,
+        property_tax_rate: float,
+        pmi_rate: float
+    ) -> float:
+        """
+        Calculates the monthly housing cost including mortgage, property tax, and PMI.
 
+        Args:
+            loan_amount: The total principal of the loan.
+            annual_interest_rate: The annual interest rate (percentage).
+            loan_term_years: The loan term in years.
+            property_tax_rate: The annual property tax rate (as a decimal). For example, 0.02 for 2%.
+            pmi_rate: The annual PMI rate (as a decimal). For example, 0.0055 for 0.55%.
+
+        Returns:
+            The monthly housing cost (mortgage + property taxes + PMI).
+        """
+        monthly_mortgage = calculate_mortgage_payment(loan_amount, loan_term_years, annual_interest_rate)
         pmi_monthly = pmi_rate * loan_amount / 12
-
         # Should be home price instead of loan amount, but this is easier.
         property_tax_monthly = loan_amount * property_tax_rate / 12
 
@@ -358,7 +384,20 @@ def _(
 
 @app.cell
 def _(alt, mo, monthly_mortgage, pd):
-    def generate_amortization_schedule(loan_amount, interest_rate, loan_term):
+    def generate_amortization_schedule(loan_amount: float, 
+                                       interest_rate: float, 
+                                       loan_term: int) -> pd.DataFrame:
+        """
+        Generates a monthly amortization schedule for the given loan parameters.
+
+        Args:
+            loan_amount: The principal of the loan.
+            interest_rate: The annual interest rate (percentage).
+            loan_term: The loan term in years.
+
+        Returns:
+            A pandas DataFrame containing Month, Date, Principal, Interest, and Remaining Balance columns.
+        """    
         amortization_schedule = []
         remaining_balance = loan_amount
         monthly_interest_rate = interest_rate / 100 / 12
@@ -386,8 +425,16 @@ def _(alt, mo, monthly_mortgage, pd):
 
         return schedule_df
 
-    def amortization_monthly_chart(schedule_df):
+    def amortization_monthly_chart(schedule_df: pd.DataFrame):
+        """
+        Creates an interactive Altair chart showing monthly principal and interest payments over time.
 
+        Args:
+            schedule_df: A DataFrame with monthly amortization data, including 'Date', 'Principal', and 'Interest'.
+
+        Returns:
+            A Marimo UI chart object with the Altair visualization.
+        """
         # Plotting principal vs. interest over time
         chart_data = schedule_df.melt(
             'Date', 
@@ -407,7 +454,6 @@ def _(alt, mo, monthly_mortgage, pd):
 
         # Base chart
         base = alt.Chart(chart_data).encode(
-            # x='Month:Q',
             x=alt.X('Date:T', axis=alt.Axis(format='%B %Y')),  # Month Year
             y='Amount:Q',
             color='Payment Type:N'
@@ -428,7 +474,6 @@ def _(alt, mo, monthly_mortgage, pd):
             value='Amount',
             groupby=['Date']
         ).mark_rule(color='gray').encode(
-            # x='Month:Q',
             x='Date:T',
             # Show a vertical rule only on hover
             opacity=alt.condition(nearest, alt.value(0.3), alt.value(0)),
@@ -453,7 +498,16 @@ def _(alt, mo, monthly_mortgage, pd):
         return mo.ui.altair_chart(monthly_chart)
 
 
-    def amortization_cumulative_chart(schedule_df):
+    def amortization_cumulative_chart(schedule_df: pd.DataFrame):
+        """
+        Creates an interactive Altair chart showing the cumulative principal and interest payments over time.
+
+        Args:
+            schedule_df: A DataFrame with monthly amortization data, including 'Date', 'Principal', and 'Interest'.
+
+        Returns:
+            A Marimo UI chart object with the Altair visualization.
+        """
         schedule_df['Cumulative Principal'] = schedule_df['Principal'].cumsum()
         schedule_df['Cumulative Interest'] = schedule_df['Interest'].cumsum()
 
@@ -545,37 +599,23 @@ def _(
         pmi_rate: float
     ):
         """
-        Plots a single heatmap combining variations in interest rate and house price 
-        to illustrate their combined impact on monthly mortgage payment.
+        Plots a heatmap showing how monthly housing cost changes with variations 
+        in interest rate and house price.
 
-        Parameters:
-        -----------
-          - base_loan_term_years : int
-              The term of the loan in years.
-          - base_interest_rate : float
-              The base annual interest rate (e.g., 6.0 for 6.0%).
-          - delta_interest_rate : float
-              The plus/minus deviation for interest rate. 
-              E.g., if base_interest_rate=6.0 and delta_interest_rate=1.0, we range from 5.0% to 7.0%.
-          - base_house_price : float
-              The starting (base) house price, typically the user input.
-          - delta_house_price : int
-              The increment step in house price (e.g., 10,000).
-          - num_price_increments : int
-              Number of increments above and below the base_house_price. 
-              Total points will be (2 * num_price_increments) + 1.
-          - property_tax_rate : float
-              The property tax rate.
-          - pmi_monthly : float
-              The PMI rate.
+        Args:
+            base_loan_term_years: The term of the loan in years.
+            base_interest_rate: The base annual interest rate (e.g., 6.0 for 6.0%).
+            delta_interest_rate: The plus/minus deviation for interest rate.
+            base_house_price: The starting house price (e.g., user input).
+            delta_house_price: The step increment for house price (e.g., 10000).
+            num_price_increments: The number of increments above and below the base house price.
+            property_tax_rate: The annual property tax rate (decimal form).
+            pmi_rate: The annual PMI rate (decimal form).
 
         Returns:
-        --------
-          An Altair chart (heatmap) showing monthly payment (color) 
-          for combinations of interest rates and house prices.
+            A Marimo UI chart object with an Altair heatmap, illustrating monthly 
+            payments over a grid of interest rates and house prices.
         """
-
-        # Range of interest rates in steps of 0.1
         lower_rate = base_interest_rate - delta_interest_rate
         higher_rate = base_interest_rate + delta_interest_rate
 
@@ -639,10 +679,7 @@ def _(
                     alt.Tooltip('Monthly Payment', title='Monthly Payment', format='$,')
                 ]
             )
-            .properties(
-                width=800,
-                height=500,
-            )
+            .properties(width=800, height=500)
             .configure_title(fontSize=20)
             .configure_axis(labelFontSize=14, titleFontSize=16)
         )
@@ -666,6 +703,104 @@ def _(
 
     combined_chart
     return combined_chart, plot_interest_rate_and_house_price_vs_payment
+
+
+@app.cell
+def _():
+    def calculate_monthly_payment(principal: float, annual_rate: float, years: int) -> float:
+        """
+        Calculates monthly mortgage payments.
+
+        Args:
+            principal: The loan amount.
+            annual_rate: The annual interest rate (percentage).
+            years: The loan term in years.
+
+        Returns:
+            Monthly mortgage payment.
+        """
+        monthly_rate = annual_rate / 100 / 12
+        months = years * 12
+        payment = principal * (monthly_rate * (1 + monthly_rate) ** months) / ((1 + monthly_rate) ** months - 1)
+        return payment
+
+
+    def evaluate_interest_buydown(
+        principal: float,
+        base_rate: float,
+        buy_down_rate: float,
+        buy_down_cost: float,
+        years: int
+    ) -> dict:
+        """
+        Evaluates whether it's worthwhile to buy down the interest rate.
+
+        Args:
+            principal: The loan amount.
+            base_rate: Original annual interest rate (percentage).
+            buy_down_rate: Reduced annual interest rate after buydown (percentage).
+            buy_down_cost: Cost required to buy the rate down.
+            years: The loan term in years.
+
+
+        Returns:
+            A dictionary with:
+                - 'monthly_payment_current': Current monthly payment without the buydown.
+                - 'monthly_payment_buydown': Monthly payment after the buydown.
+                - 'monthly_savings': The difference in monthly payments.
+                - 'break_even_months': How many months are needed to recoup buy_down_cost via monthly savings.
+                - 'total_savings_if_held_to_term': The total savings over the entire loan term if held to maturity.
+        """
+        monthly_payment_current = calculate_monthly_payment(principal, base_rate, years)
+        monthly_payment_buydown = calculate_monthly_payment(principal, buy_down_rate, years)
+        monthly_savings = monthly_payment_current - monthly_payment_buydown
+
+        if monthly_savings > 0:
+            break_even_months = buy_down_cost / monthly_savings
+        else:
+            break_even_months = float('inf')  # If there's no actual savings, break-even doesn't happen
+
+        # Total payments across the entire loan term
+        total_months = years * 12
+        total_savings_if_held_to_term = monthly_savings * total_months
+
+        return {
+            'monthly_payment_current': monthly_payment_current,
+            'monthly_payment_buydown': monthly_payment_buydown,
+            'monthly_savings': monthly_savings,
+            'break_even_months': break_even_months,
+            'break_even_years': break_even_months / 12,
+            'total_savings_if_held_to_term': total_savings_if_held_to_term
+        }
+
+    principal = 400000
+    base_rate = 7.0
+    bought_rate = 6.5
+    buydown_cost = 5000
+    years = 30
+    holding_period_years = 7
+
+    results = evaluate_interest_buydown(
+        principal, 
+        base_rate, 
+        buy_down_rate=bought_rate, 
+        buy_down_cost=buydown_cost, 
+        years=years
+    )
+
+    # for key, value in results.items():
+    #     print(f"{key.replace('_', ' ').capitalize()}: {value:.2f}")
+    return (
+        base_rate,
+        bought_rate,
+        buydown_cost,
+        calculate_monthly_payment,
+        evaluate_interest_buydown,
+        holding_period_years,
+        principal,
+        results,
+        years,
+    )
 
 
 @app.cell
