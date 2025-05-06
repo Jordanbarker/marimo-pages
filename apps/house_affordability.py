@@ -1,6 +1,6 @@
 import marimo
 
-__generated_with = "0.11.25"
+__generated_with = "0.13.5"
 app = marimo.App(width="medium")
 
 
@@ -8,25 +8,25 @@ app = marimo.App(width="medium")
 def _(mo):
     mo.md(
         """
-        # House Affordability Calculator
+    # House Affordability Calculator
 
-        ## 28/36 Rule
-        No more than **28%** of the borrower's gross monthly income should be spent on housing costs. Housing costs typically includes:
+    ## 28/36 Rule
+    No more than **28%** of the borrower's gross monthly income should be spent on housing costs. Housing costs typically includes:
 
-        - Mortgage principal and interest
+    - Mortgage principal and interest
 
-        - Property taxes
+    - Property taxes
 
-        - Homeowners insurance
+    - Homeowners insurance
 
-        No more than **36%** spent on total debt costs. This includes housing plus other debts like:
+    No more than **36%** spent on total debt costs. This includes housing plus other debts like:
 
-        - Car loans
+    - Car loans
 
-        - Credit card payments
+    - Credit card payments
 
-        - Student loans
-        """
+    - Student loans
+    """
     )
     return
 
@@ -125,21 +125,16 @@ def _():
         car_payments_input,
         down_payment_input,
         house_price_input,
-        housing_settings,
         income_input,
         interest_rate_input,
         loan_term,
         mo,
-        np,
-        other_expenses,
         other_expenses_input,
         pd,
-        pmi_input,
         pmi_rate,
         property_tax_rate,
         property_taxes_input,
         student_loans_input,
-        utilities,
     )
 
 
@@ -244,20 +239,14 @@ def _(
     percent_income_total = percent_income_housing + percent_income_non_housing
     return (
         calculate_monthly_housing_cost,
-        calculate_mortgage_payment,
-        housing_cost_annual,
         housing_cost_monthly,
         loan_amount,
         monthly_expenses,
         monthly_mortgage,
-        non_housing_cost_annual,
-        non_housing_cost_monthly,
         percent_income_housing,
         percent_income_non_housing,
         percent_income_total,
-        pmi_annual,
         pmi_monthly,
-        property_tax_annual,
         property_tax_monthly,
     )
 
@@ -379,7 +368,7 @@ def _(
             mo.md("#### Cumulative Principal and Interest Payments"),
             amortization_cumulative_chart(schedule_df)])
     ], widths='equal')
-    return callout, schedule_df, text_28, text_36
+    return
 
 
 @app.cell
@@ -702,7 +691,7 @@ def _(
     )
 
     combined_chart
-    return combined_chart, plot_interest_rate_and_house_price_vs_payment
+    return
 
 
 @app.cell
@@ -790,17 +779,7 @@ def _():
 
     # for key, value in results.items():
     #     print(f"{key.replace('_', ' ').capitalize()}: {value:.2f}")
-    return (
-        base_rate,
-        bought_rate,
-        buydown_cost,
-        calculate_monthly_payment,
-        evaluate_interest_buydown,
-        holding_period_years,
-        principal,
-        results,
-        years,
-    )
+    return
 
 
 @app.cell
