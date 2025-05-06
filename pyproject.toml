@@ -1,0 +1,10 @@
+[project]
+name = "mo"
+version = "0.1.0"
+description = "Project to run marimo pages"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "marimo>=0.13.5",
+    "pyarrow>=20.0.0",
+]
