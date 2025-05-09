@@ -2,10 +2,13 @@
 
 This repository exports my [marimo](https://marimo.io) notebooks to WebAssembly and deploys them to GitHub Pages.
 
-## 📚 Included Pages
+## 📚 Pages
 
-Currently, I just have the template examples: 
-- `apps/charts.py`: Interactive data visualization with Altair
+- `apps/house_affordability.py`: Tool to understand whether a house is in your budget or not.
+- `apps/quick_ref.py`: My cheat sheet notes on Marimo.
+
+
+Template examples: 
 - `notebooks/fibonacci.py`: Interactive Fibonacci sequence calculator
 - `notebooks/penguins.py`: Interactive data analysis with Polars and marimo
 
